@@ -1,23 +1,17 @@
-
 package users
 
 import (
 	"context"
 	"errors"
-	"log"
-	"strings"
 	"time"
 
 	"github.com/JerryJeager/r3sonance-backend/internal/models"
-	"github.com/JerryJeager/r3sonance-backend/internal/utils"
-	"github.com/JerryJeager/r3sonance-backend/internal/utils/emails"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type UserSv interface {
-	CreateUser(ctx context.Context, user *models.User) (string, error)
-	VerfiyUserEmail(ctx context.Context, verify *models.VerifyUserEmail) error
-	Login(ctx context.Context, user *models.UserLogin) (*models.User, string, error)
+	CreateUser(ctx context.Context, spotifyProfile *models.SpotifyProfile, tokenResp *models.SpotifyTokenResponse) error
 }
 
 type UserServ struct {
@@ -28,86 +22,29 @@ func NewUserService(repo UserStore) *UserServ {
 	return &UserServ{repo: repo}
 }
 
-func (s *UserServ) CreateUser(ctx context.Context, user *models.User) (string, error) {
-
-	id := uuid.New()
-	user.ID = id
-
-	var otp models.Otp
-	otp.ID = uuid.New()
-	otp.UserID = id
-	otp.Otp = utils.GetOtp()
-	otp.ExpiresAt = time.Now().Add(time.Hour * 24 * 5) //expires after five days
-
-	if err := user.HashPassword(); err != nil {
-		return "", err
-	}
-
-	if err := s.repo.CreateUser(ctx, user, &otp); err != nil {
-		return "", err
-	}
-
-	go func() {
-		if err := emails.SendEmail(user.Email, "Welcome", emails.VerifyEmailTemplate(user.FirstName, otp.Otp)); err != nil {
-			log.Printf("failed to send welcome email")
+func (s *UserServ) CreateUser(ctx context.Context, spotifyProfile *models.SpotifyProfile, tokenResp *models.SpotifyTokenResponse) error {
+	oldUser, err := s.repo.GetUserByEmail(ctx, spotifyProfile.Email)
+	if err == nil && oldUser != nil {
+		oldUser.SpotifyID = spotifyProfile.ID
+		oldUser.DisplayName = spotifyProfile.DisplayName
+		oldUser.Country = spotifyProfile.Country
+		oldUser.AccessToken = tokenResp.AccessToken
+		oldUser.RefreshToken = tokenResp.RefreshToken
+		oldUser.TokenExpiresAt = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+		return s.repo.CreateUser(ctx, oldUser)
+	} else if err != nil && err != gorm.ErrRecordNotFound {
+		user := &models.User{
+			ID:             uuid.New(),
+			SpotifyID:      spotifyProfile.ID,
+			DisplayName:    spotifyProfile.DisplayName,
+			Email:          spotifyProfile.Email,
+			Country:        spotifyProfile.Country,
+			AccessToken:    tokenResp.AccessToken,
+			RefreshToken:   tokenResp.RefreshToken,
+			TokenExpiresAt: time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+			CreatedAt:      time.Now(),
 		}
-	}()
-
-	return id.String(), nil
+		return s.repo.CreateUser(ctx, user)
+	}
+	return errors.New("failed to create or update user")
 }
-
-func (s *UserServ) VerfiyUserEmail(ctx context.Context, verify *models.VerifyUserEmail) error {
-	var user *models.User
-	var err error
-	if verify.Email != "" {
-		user, err = s.repo.GetUserByEmail(ctx, verify.Email)
-		if err != nil {
-			user, err = s.repo.GetUserByID(ctx, verify.UserID)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		user, err = s.repo.GetUserByID(ctx, verify.UserID)
-		if err != nil {
-			return err
-		}
-	}
-
-	otp, err := s.repo.GetUserOtp(ctx, user.ID)
-	if err != nil {
-		return err
-	}
-
-	if otp.ExpiresAt.Compare(otp.CreatedAt) == -1 {
-		return errors.New("expired token")
-	}
-	if otp.Otp != verify.Otp {
-		return errors.New("otp is invalid")
-	}
-	return s.repo.VerifyUser(ctx, user.ID)
-}
-
-func (s *UserServ) Login(ctx context.Context, user *models.UserLogin) (*models.User, string, error) {
-	user.Email = strings.TrimSpace(user.Email)
-	user.Password = strings.TrimSpace(user.Password)
-	u, err := s.repo.GetUserByEmail(ctx, user.Email)
-	if err != nil {
-		return nil, "", err
-	}
-	if !u.IsVerified {
-		return nil, "", errors.New("only verified users can login")
-	}
-
-	if err := models.VerifyPassword(user.Password, u.Password); err != nil {
-		return nil, "", err
-	}
-	token, err := utils.GenerateToken(u.ID)
-	if err != nil {
-		return nil, "", err
-	}
-	return u, token, nil
-}
-
-
-	

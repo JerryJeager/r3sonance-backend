@@ -1,12 +1,16 @@
-
 package http
 
 import (
+	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 
 	"github.com/JerryJeager/r3sonance-backend/internal/models"
 	"github.com/JerryJeager/r3sonance-backend/internal/service/users"
+	"github.com/JerryJeager/r3sonance-backend/internal/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/go-resty/resty/v2"
 )
 
 type UserController struct {
@@ -17,55 +21,95 @@ func NewUserController(serv users.UserSv) *UserController {
 	return &UserController{serv: serv}
 }
 
-func (c *UserController) CreateUser(ctx *gin.Context) {
-	var user models.User
-	if err := ctx.ShouldBindJSON(&user); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
+func (c *UserController) SpotifyLogin(ctx *gin.Context) {
 
+	clientID := os.Getenv("SPOTIFY_CLIENT_ID")
+	redirectURI := os.Getenv("SPOTIFY_REDIRECT_URI")
 
-	id, err := c.serv.CreateUser(ctx, &user)
+	state, err := utils.GenerateState()
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate state"})
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, gin.H{"user_id": id})
+	ctx.SetCookie("spotify_auth_state", state, 600, "/", "127.0.0.1", false, true)
+
+	baseURL := "https://accounts.spotify.com/authorize"
+
+	params := url.Values{}
+	params.Add("client_id", clientID)
+	params.Add("response_type", "code")
+	params.Add("redirect_uri", redirectURI)
+	params.Add("scope", "user-top-read user-read-recently-played user-read-email user-read-private playlist-read-private")
+	params.Add("state", state)
+
+	authURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
+
+	ctx.Redirect(http.StatusFound, authURL)
 }
 
-func (c *UserController) VerifyUserEmail(ctx *gin.Context) {
-	var verify models.VerifyUserEmail
-	if err := ctx.ShouldBindJSON(&verify); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+func (c *UserController) SpotifyCallback(ctx *gin.Context) {
+
+	code := ctx.Query("code")
+	state := ctx.Query("state")
+
+	if code == "" || state == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "missing code or state"})
 		return
 	}
 
-	if err := c.serv.VerfiyUserEmail(ctx, &verify); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "failed to verify user", "error": err.Error()})
+	// Validate state
+	storedState, err := ctx.Cookie("spotify_auth_state")
+	if err != nil || storedState != state {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid state"})
 		return
 	}
 
-	ctx.Status(http.StatusOK)
-}
+	clientID := os.Getenv("SPOTIFY_CLIENT_ID")
+	clientSecret := os.Getenv("SPOTIFY_CLIENT_SECRET")
+	redirectURI := os.Getenv("SPOTIFY_REDIRECT_URI")
 
-func (c *UserController) Login(ctx *gin.Context) {
-	var user models.UserLogin
-	if err := ctx.ShouldBindJSON(&user); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	restyClient := resty.New()
+
+	// Exchange code for token
+	var tokenResp models.SpotifyTokenResponse
+
+	resp, err := restyClient.R().
+		SetHeader("Content-Type", "application/x-www-form-urlencoded").
+		SetBasicAuth(clientID, clientSecret).
+		SetFormData(map[string]string{
+			"grant_type":   "authorization_code",
+			"code":         code,
+			"redirect_uri": redirectURI,
+		}).
+		SetResult(&tokenResp).
+		Post("https://accounts.spotify.com/api/token")
+
+	if err != nil || resp.StatusCode() != 200 {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to exchange token"})
 		return
 	}
 
-	userData, token, err := c.serv.Login(ctx, &user)
+	var profile models.SpotifyProfile
+
+	resp, err = restyClient.R().
+		SetHeader("Authorization", "Bearer "+tokenResp.AccessToken).
+		SetResult(&profile).
+		Get("https://api.spotify.com/v1/me")
+
+	if err != nil || resp.StatusCode() != 200 {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch profile"})
+		return
+	}
+
+	err = c.serv.CreateUser(ctx, &profile, &tokenResp)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Login failed", "message": err.Error()})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
 		return
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"user":  userData,
-		"token": token,
+		"message": "spotify login successful",
+		"user":    profile,
 	})
 }
-
-	

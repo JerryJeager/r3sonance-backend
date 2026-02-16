@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS users(
+    id  UUID PRIMARY KEY,
+    spotify_id VARCHAR,
+    display_name VARCHAR,
+    email VARCHAR UNIQUE,
+    country VARCHAR,
+    access_token VARCHAR,
+    refresh_token VARCHAR,
+    token_expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ
+);

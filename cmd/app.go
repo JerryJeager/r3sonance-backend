@@ -26,9 +26,8 @@ func ExecuteApiRoutes() {
 	api := router.Group("/api/v1")
 	users := api.Group("/users")
 
-	users.POST("/signup", userController.CreateUser)
-	users.POST("/verify-email", userController.VerifyUserEmail)
-	users.POST("/login", userController.Login)
+	users.GET("/spotify/login", userController.SpotifyLogin)
+	users.GET("/spotify/callback", userController.SpotifyCallback)
 
 	port := os.Getenv("PORT")
 	if port == "" {

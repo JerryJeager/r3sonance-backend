@@ -1,52 +1,34 @@
 package models
 
 import (
-	"html"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
-	ID           uuid.UUID    `json:"id"`
-	FirstName    string       `json:"first_name" binding:"required"`
-	LastName     string       `json:"last_name" binding:"required"`
-	Email        string       `json:"email" binding:"required"`
-	Password     string       `json:"password" binding:"required"`
-	IsVerified   bool         `json:"is_verified"`
-	CreatedAt    time.Time    `json:"created_at"`
-	UpdatedAt    time.Time    `json:"updated_at"`
+	ID             uuid.UUID `json:"id"`
+	SpotifyID      string    `json:"spotify_id"`
+	DisplayName    string    `json:"display_name"`
+	Email          string    `json:"email"`
+	Country        string    `json:"country"`
+	AccessToken    string    `json:"access_token"`
+	RefreshToken   string    `json:"refresh_token"`
+	TokenExpiresAt time.Time `json:"token_expires_at"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
-type UserLogin struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
+type SpotifyTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	Scope        string `json:"scope"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token"`
 }
 
-type VerifyUserEmail struct {
-	Email  string `json:"email"`
-	UserID string `json:"user_id"`
-	Otp    string `json:"otp" binding:"required"`
+type SpotifyProfile struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+	Country     string `json:"country"`
 }
-
-func (user *User) HashPassword() error {
-	user.Password = html.EscapeString(strings.TrimSpace(user.Password))
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-
-	if err != nil {
-		return err
-	}
-	user.Password = string(hashedPassword)
-
-	user.Email = html.EscapeString(strings.TrimSpace(user.Email))
-
-	return nil
-}
-
-func VerifyPassword(password, hashedPassword string) error {
-	password = html.EscapeString(strings.TrimSpace(password))
-	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
-}
-
