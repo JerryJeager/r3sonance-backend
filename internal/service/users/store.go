@@ -55,3 +55,4 @@ func (r *UserRepo) GetUserMusicSnapshotByEmail(ctx context.Context, email string
 func (r *UserRepo) CreateUserMusicSnapshot(ctx context.Context, snapshot *models.UserMusicSnapshot) error {
 	return r.client.WithContext(ctx).Save(snapshot).Error
 }
+

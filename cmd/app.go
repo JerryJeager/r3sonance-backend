@@ -1,4 +1,3 @@
-
 package cmd
 
 import (
@@ -28,6 +27,7 @@ func ExecuteApiRoutes() {
 
 	users.GET("/spotify/login", userController.SpotifyLogin)
 	users.GET("/spotify/callback", userController.SpotifyCallback)
+	users.GET("/profile", middleware.SpotfiyAuthMiddleware(), userController.GetUser)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -37,5 +37,3 @@ func ExecuteApiRoutes() {
 		log.Panic("failed to run server")
 	}
 }
-
-	

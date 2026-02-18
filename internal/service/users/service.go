@@ -15,6 +15,7 @@ type UserSv interface {
 	CreateUser(ctx context.Context, spotifyProfile *models.SpotifyProfile, tokenResp *models.SpotifyTokenResponse) error
 	CreateUserMusicSnapshot(ctx context.Context, email string, snapshot *models.BuiltUserMusicSnapchat) error
 	ShouldUpdateUserMusicSnapshot(ctx context.Context, email string) (bool, error)
+	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
 }
 
 type UserServ struct {
@@ -104,4 +105,8 @@ func (s *UserServ) CreateUserMusicSnapshot(ctx context.Context, email string, sn
 	}
 
 	return err
+}
+
+func (s *UserServ) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+	return s.repo.GetUserByEmail(ctx, email)
 }

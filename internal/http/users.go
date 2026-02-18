@@ -112,16 +112,36 @@ func (c *UserController) SpotifyCallback(ctx *gin.Context) {
 
 	go func() {
 		// if shouldUpdate, _ := c.serv.ShouldUpdateUserMusicSnapshot(ctx, profile.Email); shouldUpdate {
-			spotifyClient := spotify.NewSpotifyClient(tokenResp.AccessToken)
-			snapshot := spotify.GetUserMusicSnapshot(spotifyClient)
-			if err := c.serv.CreateUserMusicSnapshot(ctx, profile.Email, snapshot); err != nil {
-				log.Printf("failed to update user music snapshot: %s\n", err.Error())
-			}
+		spotifyClient := spotify.NewSpotifyClient(tokenResp.AccessToken)
+		snapshot := spotify.GetUserMusicSnapshot(spotifyClient)
+		if err := c.serv.CreateUserMusicSnapshot(ctx, profile.Email, snapshot); err != nil {
+			log.Printf("failed to update user music snapshot: %s\n", err.Error())
+		}
 		// }
 	}()
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "spotify login successful",
 		"user":    profile,
+	})
+}
+
+func (c *UserController) GetUser(ctx *gin.Context) {
+	email, exists := ctx.Get("user_email")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "user email not found"})
+		return
+	}
+
+	user, err := c.serv.GetUserByEmail(ctx, email.(string))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user"})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{
+		"email":     user.Email,
+		"name":      user.DisplayName,
+		"country":   user.Country,
+		"public_id": user.PublicID,
 	})
 }
