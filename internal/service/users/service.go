@@ -16,6 +16,7 @@ type UserSv interface {
 	CreateUserMusicSnapshot(ctx context.Context, email string, snapshot *models.BuiltUserMusicSnapchat) error
 	ShouldUpdateUserMusicSnapshot(ctx context.Context, email string) (bool, error)
 	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
+	GetUserMusicSnapshot(ctx context.Context, email string) (*models.UserMusicSnapshot, error)
 }
 
 type UserServ struct {
@@ -109,4 +110,16 @@ func (s *UserServ) CreateUserMusicSnapshot(ctx context.Context, email string, sn
 
 func (s *UserServ) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	return s.repo.GetUserByEmail(ctx, email)
+}
+
+func (s *UserServ) GetUserMusicSnapshot(ctx context.Context, email string) (*models.UserMusicSnapshot, error) {
+	snapshot, err := s.repo.GetUserMusicSnapshotByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	topArtists := snapshot.TopArtists[:5]
+	topTracks := snapshot.TopTracks[:10]
+	snapshot.TopArtists = topArtists
+	snapshot.TopTracks = topTracks
+	return snapshot, nil
 }

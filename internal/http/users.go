@@ -145,3 +145,23 @@ func (c *UserController) GetUser(ctx *gin.Context) {
 		"public_id": user.PublicID,
 	})
 }
+
+func (c *UserController) GetUserMusicSnapshot(ctx *gin.Context) {
+	email, exists := ctx.Get("user_email")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "user email not found"})
+		return
+	}
+
+	snapshot, err := c.serv.GetUserMusicSnapshot(ctx, email.(string))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user music snapshot"})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{
+		"snapshot": gin.H{
+			"top_artists": snapshot.TopArtists,
+			"top_tracks":  snapshot.TopTracks,
+		},
+	})
+}

@@ -27,6 +27,7 @@ func ExecuteApiRoutes() {
 
 	users.GET("/spotify/login", userController.SpotifyLogin)
 	users.GET("/spotify/callback", userController.SpotifyCallback)
+	users.GET("/spotify/snapshot", middleware.SpotfiyAuthMiddleware(), userController.GetUserMusicSnapshot)
 	users.GET("/profile", middleware.SpotfiyAuthMiddleware(), userController.GetUser)
 
 	port := os.Getenv("PORT")
