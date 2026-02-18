@@ -9,6 +9,7 @@ import (
 type User struct {
 	ID             uuid.UUID `json:"id"`
 	SpotifyID      string    `json:"spotify_id"`
+	PublicID       string    `json:"public_id"`
 	DisplayName    string    `json:"display_name"`
 	Email          string    `json:"email"`
 	Country        string    `json:"country"`

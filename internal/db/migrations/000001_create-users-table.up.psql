@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS users(
     id  UUID PRIMARY KEY,
     spotify_id VARCHAR,
+    public_id VARCHAR(15) UNIQUE,
     display_name VARCHAR,
     email VARCHAR UNIQUE,
     country VARCHAR,
