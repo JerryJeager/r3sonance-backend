@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS user_music_snapshots(
+    id  UUID PRIMARY KEY,
+    user_id UUID REFERENCES users(id),
+    top_artists JSONB,
+    top_tracks JSONB,
+    listening_pattern JSONB,
+    updated_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ
+);

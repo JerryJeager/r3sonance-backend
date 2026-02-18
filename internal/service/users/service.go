@@ -12,6 +12,8 @@ import (
 
 type UserSv interface {
 	CreateUser(ctx context.Context, spotifyProfile *models.SpotifyProfile, tokenResp *models.SpotifyTokenResponse) error
+	CreateUserMusicSnapshot(ctx context.Context, email string, snapshot *models.BuiltUserMusicSnapchat) error
+	ShouldUpdateUserMusicSnapshot(ctx context.Context, email string) (bool, error)
 }
 
 type UserServ struct {
@@ -48,3 +50,57 @@ func (s *UserServ) CreateUser(ctx context.Context, spotifyProfile *models.Spotif
 	}
 	return errors.New("failed to create or update user")
 }
+
+func (s *UserServ) ShouldUpdateUserMusicSnapshot(ctx context.Context, email string) (bool, error) {
+	userMusicSnapshot, err := s.repo.GetUserMusicSnapshotByEmail(ctx, email)
+	if err != nil || userMusicSnapshot == nil {
+		return true, nil
+	}
+
+	updatedAtPlusADay := userMusicSnapshot.UpdatedAt.Add(24 * time.Hour)
+
+	if time.Now().After(updatedAtPlusADay) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (s *UserServ) CreateUserMusicSnapshot(ctx context.Context, email string, snapshot *models.BuiltUserMusicSnapchat) error {
+	user, err := s.repo.GetUserByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+
+	oldSnapshot, err := s.repo.GetUserMusicSnapshotByEmail(ctx, email)
+
+	if err == nil {
+		// Update
+		oldSnapshot.TopArtists = snapshot.TopArtists
+		oldSnapshot.TopTracks = snapshot.TopTracks
+		// oldSnapshot.AudioProfile = snapshot.AudioProfile
+		oldSnapshot.ListeningPattern = snapshot.ListeningPattern
+		// oldSnapshot.TopGenres = snapshot.TopGenre
+		oldSnapshot.UpdatedAt = time.Now()
+
+		return s.repo.CreateUserMusicSnapshot(ctx, oldSnapshot)
+	}
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// Create
+		newSnapshot := &models.UserMusicSnapshot{
+			ID:               uuid.New(),
+			UserID:           user.ID,
+			TopArtists:       snapshot.TopArtists,
+			TopTracks:        snapshot.TopTracks,
+			// TopGenres:        snapshot.TopGenre,
+			// AudioProfile:     snapshot.AudioProfile,
+			ListeningPattern: snapshot.ListeningPattern,
+		}
+
+		return s.repo.CreateUserMusicSnapshot(ctx, newSnapshot)
+	}
+
+	return err
+}
+
