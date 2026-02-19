@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 
 	"github.com/JerryJeager/r3sonance-backend/internal/models"
 	"github.com/JerryJeager/r3sonance-backend/internal/service/spotify"
@@ -14,6 +15,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
 )
+
+var oauthStateStore = sync.Map{}
 
 type UserController struct {
 	serv users.UserSv
@@ -34,7 +37,8 @@ func (c *UserController) SpotifyLogin(ctx *gin.Context) {
 		return
 	}
 
-	ctx.SetCookie("spotify_auth_state", state, 600, "/", "127.0.0.1", false, true)
+	// ctx.SetCookie("spotify_auth_state", state, 600, "/", "", false, true)
+	oauthStateStore.Store(state, true)
 
 	baseURL := "https://accounts.spotify.com/authorize"
 
@@ -61,11 +65,17 @@ func (c *UserController) SpotifyCallback(ctx *gin.Context) {
 	}
 
 	// Validate state
-	storedState, err := ctx.Cookie("spotify_auth_state")
-	if err != nil || storedState != state {
+	// storedState, err := ctx.Cookie("spotify_auth_state")
+	// if err != nil || storedState != state {
+	// 	ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid state"})
+	// 	return
+	// }
+	_, exists := oauthStateStore.Load(state)
+	if !exists {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid state"})
 		return
 	}
+	oauthStateStore.Delete(state)
 
 	clientID := os.Getenv("SPOTIFY_CLIENT_ID")
 	clientSecret := os.Getenv("SPOTIFY_CLIENT_SECRET")
@@ -99,8 +109,20 @@ func (c *UserController) SpotifyCallback(ctx *gin.Context) {
 		SetResult(&profile).
 		Get("https://api.spotify.com/v1/me")
 
-	if err != nil || resp.StatusCode() != 200 {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch profile"})
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "failed to fetch user",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	if resp.StatusCode() != 200 {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error":  "spotify returned non-200",
+			"status": resp.StatusCode(),
+			"body":   resp.String(),
+		})
 		return
 	}
 
@@ -163,5 +185,29 @@ func (c *UserController) GetUserMusicSnapshot(ctx *gin.Context) {
 			"top_artists": snapshot.TopArtists,
 			"top_tracks":  snapshot.TopTracks,
 		},
+	})
+}
+
+func (c *UserController) GetMusicCompatibility(ctx *gin.Context) {
+	email, exists := ctx.Get("user_email")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "user email not found"})
+		return
+	}
+	var publicID PublicIDPP
+	if err := ctx.ShouldBindUri(&publicID); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "no public_id in path param"})
+		return
+	}
+
+	compatibilityResult, name, err := c.serv.GetMusicCompatibility(ctx, email.(string), publicID.PublicID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"compatibility_result": compatibilityResult,
+		"compared_with":        name,
 	})
 }
