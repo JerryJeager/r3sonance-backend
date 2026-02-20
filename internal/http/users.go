@@ -119,9 +119,12 @@ func (c *UserController) SpotifyCallback(ctx *gin.Context) {
 
 	if resp.StatusCode() != 200 {
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"error":  "spotify returned non-200",
-			"status": resp.StatusCode(),
-			"body":   resp.String(),
+			// "error":  "spotify returned non-200",
+			// "status": resp.StatusCode(),
+			// "body":   resp.String(),
+			"message": `Because of Spotify’s updated regulations, only pre-approved Spotify users can access this app right now.
+
+			If you’d like to be added, just reach out to us at: amadijerry823@gmail.com`,
 		})
 		return
 	}
@@ -142,10 +145,7 @@ func (c *UserController) SpotifyCallback(ctx *gin.Context) {
 		}
 	}()
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"message": "spotify login successful",
-		"user":    profile,
-	})
+	ctx.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s?token=%s", os.Getenv("FRONTEND_REDIRECT"), tokenResp.AccessToken))
 }
 
 func (c *UserController) GetUser(ctx *gin.Context) {
