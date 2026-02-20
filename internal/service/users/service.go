@@ -137,9 +137,13 @@ func (s *UserServ) GetMusicCompatibility(ctx context.Context, email, publicID st
 		return nil, "", err
 	}
 
-	userProfile, err := s.repo.GetUserByPublicID(ctx, publicID) //this is the public id of the person user a is doing a music compatibility result with, we get the display name of this user that would be passed to the frontend for better ux
+	userProfile, err := s.repo.GetUserByPublicID(ctx, publicID) //this is the public id of the person user a is doing a music compatibility result with(user b), we get the display name of this user that would be passed to the frontend for better ux
 	if err != nil {
 		return nil, "", err
+	}
+
+	if email == userProfile.Email{ // same user
+		return nil, "", errors.New("you're not allowed to get music compatibility results with yourself")
 	}
 	userBSnapshot, err := s.repo.GetUserMusicSnapshotByPublicID(ctx, publicID)
 	if err != nil {
