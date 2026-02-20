@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/JerryJeager/r3sonance-backend/internal/models"
@@ -115,8 +116,11 @@ func CalculateTrackScore(a, b []models.SnapshotTrack) (float64, []models.SharedT
 
 func CalculateActiveHourScore(a, b map[int]int) (float64, models.ListeningInsights) {
 
+	insights := models.ListeningInsights{}
+
 	if len(a) < 2 || len(b) < 2 {
-		return models.HourWeight / 2, models.ListeningInsights{}
+		insights.SyncMessage = "Not enough listening data to analyze patterns."
+		return models.HourWeight / 2, insights
 	}
 
 	vecA := make([]float64, 24)
@@ -150,13 +154,27 @@ func CalculateActiveHourScore(a, b map[int]int) (float64, models.ListeningInsigh
 	}
 
 	if magA == 0 || magB == 0 {
-		return 0, models.ListeningInsights{}
+		insights.SyncMessage = "Listening data too sparse to compare."
+		return 0, insights
 	}
 
 	cosine := dot / (math.Sqrt(magA) * math.Sqrt(magB))
 	score := cosine * models.HourWeight
 
-	return score, models.ListeningInsights{}
+	peakA := getPeakHour(a)
+	peakB := getPeakHour(b)
+
+	insights.ListeningTypeA = categorizeHour(peakA)
+	insights.ListeningTypeB = categorizeHour(peakB)
+
+	if peakA == peakB {
+		insights.MostSyncedHour = formatHour(peakA)
+		insights.SyncMessage = "You both peak around " + insights.MostSyncedHour
+	} else {
+		insights.SyncMessage = "You have different listening rhythms."
+	}
+
+	return score, insights
 }
 
 func CalculateDiversityScore(a, b int) float64 {
@@ -203,4 +221,33 @@ func findArtistImage(artists []models.SnapshotArtist, id string) string {
 		}
 	}
 	return ""
+}
+
+func getPeakHour(hours map[int]int) int {
+	max := -1
+	peak := 0
+	for h, v := range hours {
+		if v > max {
+			max = v
+			peak = h
+		}
+	}
+	return peak
+}
+
+func categorizeHour(hour int) string {
+	switch {
+	case hour >= 5 && hour <= 11:
+		return "Morning Listener"
+	case hour >= 12 && hour <= 17:
+		return "Afternoon Listener"
+	case hour >= 18 && hour <= 21:
+		return "Evening Listener"
+	default:
+		return "Night Owl"
+	}
+}
+
+func formatHour(hour int) string {
+	return fmt.Sprintf("%02d:00", hour)
 }

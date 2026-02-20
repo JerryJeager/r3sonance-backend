@@ -133,13 +133,13 @@ func (c *UserController) SpotifyCallback(ctx *gin.Context) {
 	}
 
 	go func() {
-		// if shouldUpdate, _ := c.serv.ShouldUpdateUserMusicSnapshot(ctx, profile.Email); shouldUpdate {
-		spotifyClient := spotify.NewSpotifyClient(tokenResp.AccessToken)
-		snapshot := spotify.GetUserMusicSnapshot(spotifyClient)
-		if err := c.serv.CreateUserMusicSnapshot(ctx, profile.Email, snapshot); err != nil {
-			log.Printf("failed to update user music snapshot: %s\n", err.Error())
+		if shouldUpdate, _ := c.serv.ShouldUpdateUserMusicSnapshot(ctx, profile.Email); shouldUpdate {
+			spotifyClient := spotify.NewSpotifyClient(tokenResp.AccessToken)
+			snapshot := spotify.GetUserMusicSnapshot(spotifyClient)
+			if err := c.serv.CreateUserMusicSnapshot(ctx, profile.Email, snapshot); err != nil {
+				log.Printf("failed to update user music snapshot: %s\n", err.Error())
+			}
 		}
-		// }
 	}()
 
 	ctx.JSON(http.StatusOK, gin.H{
