@@ -122,9 +122,7 @@ func (c *UserController) SpotifyCallback(ctx *gin.Context) {
 			// "error":  "spotify returned non-200",
 			// "status": resp.StatusCode(),
 			// "body":   resp.String(),
-			"message": `Because of Spotify’s updated regulations, only pre-approved Spotify users can access this app right now.
-
-			If you’d like to be added, just reach out to us at: amadijerry823@gmail.com`,
+			"message": `Because of Spotify’s updated regulations, only pre-approved Spotify users can access this app right now. If you’d like to be added, just reach out to us at: amadijerry823@gmail.com`,
 		})
 		return
 	}
